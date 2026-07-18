@@ -1,0 +1,614 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>بازی آموزشی: نبرد جنگجو</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100vh;
+            overflow: hidden; background-color: #111; font-family: Tahoma, Arial, sans-serif;
+            touch-action: none; user-select: none;
+        }
+        #gameCanvas {
+            display: block; width: 100vw; height: 100vh; position: absolute; top: 0; left: 0;
+        }
+        .ui-layer {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .hud {
+            padding: 10px 15px; display: flex; justify-content: space-between;
+            color: #f1c40f; font-size: 16px; font-weight: bold;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            text-shadow: 1px 1px 2px black;
+        }
+        .hud div {
+            text-align: center;
+        }
+        /* کنترل‌های جهت‌دار */
+        .controls {
+            pointer-events: auto; padding: 20px; display: flex; justify-content: center; align-items: center;
+            margin-bottom: 20px;
+        }
+        .dpad {
+            display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(3, 60px); gap: 5px;
+        }
+        .dbtn {
+            background: rgba(255, 255, 255, 0.85); border: 2px solid #333; border-radius: 12px;
+            font-size: 14px; font-weight: bold; color: #2c3e50; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; box-shadow: 0 5px 0 #7f8c8d; text-align: center; transition: 0.1s;
+        }
+        .dbtn:active { transform: translateY(5px); box-shadow: none; background: #ddd; }
+        .up { grid-column: 2; grid-row: 1; }
+        .left { grid-column: 1; grid-row: 2; }
+        .right { grid-column: 3; grid-row: 2; }
+        .down { grid-column: 2; grid-row: 3; }
+
+        /* صفحات رویی (منوها) */
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            pointer-events: auto; z-index: 10;
+        }
+
+        /* تم جنگل زنده و پویا برای صفحه شروع */
+        .jungle-theme {
+            position: relative;
+            overflow: hidden;
+            background: radial-gradient(circle at 30% 20%, #d4f542 0%, #7ed957 30%, #2fa84f 60%, #145a32 85%, #0b3d0b 100%);
+            background-size: 180% 180%;
+            animation: jungleGlow 10s ease-in-out infinite;
+            box-shadow: inset 0 0 120px rgba(0,0,0,0.6);
+        }
+        @keyframes jungleGlow {
+            0%, 100% { background-position: 0% 0%; }
+            50% { background-position: 60% 40%; }
+        }
+        .floating-animals {
+            position: absolute; inset: 0; pointer-events: none; z-index: 0;
+        }
+        .animal {
+            position: absolute; filter: drop-shadow(2px 5px 4px rgba(0,0,0,0.45));
+            animation: floatAnim 4.5s ease-in-out infinite;
+        }
+        @keyframes floatAnim {
+            0%, 100% { transform: translateY(0) rotate(-4deg); }
+            50% { transform: translateY(-22px) rotate(6deg); }
+        }
+        .a1 { top: 8%;  left: 8%;  font-size: 60px; animation-delay: 0s; }
+        .a2 { top: 12%; right: 10%; font-size: 48px; animation-delay: 0.7s; }
+        .a3 { bottom: 14%; left: 6%; font-size: 55px; animation-delay: 1.3s; }
+        .a4 { bottom: 18%; right: 8%; font-size: 46px; animation-delay: 0.4s; }
+        .a5 { top: 45%; left: 2%; font-size: 62px; animation-delay: 1.0s; }
+        .a6 { top: 42%; right: 3%; font-size: 42px; animation-delay: 1.6s; }
+        .a7 { top: 4%; left: 45%; font-size: 38px; animation-delay: 0.9s; }
+
+        @keyframes popIn {
+            0% { transform: scale(0.55) rotateX(25deg); opacity: 0; }
+            100% { transform: scale(1) rotateX(0deg); opacity: 1; }
+        }
+        .jungle-content {
+            position: relative; z-index: 1;
+            background: rgba(255, 255, 255, 0.93); padding: 40px; border-radius: 20px; text-align: center;
+            max-width: 90%; width: 400px;
+            box-shadow: 0 20px 45px rgba(0,0,0,0.5), inset 0 0 15px rgba(255,255,255,0.5);
+            border: 4px solid #1e8449;
+            animation: popIn 0.6s ease-out;
+        }
+        .jungle-content h1 {
+            color: #fff; margin-top: 0; font-size: 32px;
+            text-shadow: 0px 4px 0px #1e8449, 0px 8px 12px rgba(0,0,0,0.4);
+            -webkit-text-stroke: 1px #004d00;
+        }
+        .jungle-content h3 { color: #2c3e50; font-weight: bold; }
+
+        /* استایل‌های عمومی مودال‌ها */
+        .modal-content {
+            background: rgba(255, 255, 255, 0.95); padding: 30px; border-radius: 15px; text-align: center;
+            max-width: 90%; width: 400px; box-shadow: 0 0 20px rgba(0,0,0,0.5); border: 3px solid #2c3e50;
+        }
+        input[type="text"] {
+            width: 80%; padding: 12px; margin: 15px 0; border: 2px solid #27ae60; border-radius: 8px;
+            font-size: 16px; font-family: Tahoma; text-align: center; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button.action-btn {
+            background: linear-gradient(to bottom, #ff9f1c, #f9c74f, #2ecc71, #27ae60); background-size: 300% 300%;
+            animation: btnShine 4s ease infinite;
+            color: white; border: none; padding: 15px 30px;
+            font-size: 20px; font-weight: bold; border-radius: 10px; cursor: pointer; font-family: Tahoma;
+            box-shadow: 0 5px 0 #1e8449, 0 10px 15px rgba(0,0,0,0.3); transition: 0.1s; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        @keyframes btnShine {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        button.action-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #1e8449, 0 2px 5px rgba(0,0,0,0.3); }
+
+        .ans-btn {
+            display: block; width: 100%; margin: 10px 0; padding: 15px;
+            background: linear-gradient(to bottom, #3498db, #2980b9); color: white; border: none; border-radius: 10px;
+            font-size: 18px; font-weight: bold; cursor: pointer; font-family: Tahoma; box-shadow: 0 4px 0 #1f618d;
+        }
+        .ans-btn:active { transform: translateY(4px); box-shadow: none; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="ui-layer">
+        <div class="hud" id="hud" style="display: none;">
+            <div>دشمنان:<br><span id="enemyUI">0</span> / 16</div>
+            <div>سکه‌ها:<br><span id="coinUI" style="color:#2ecc71;">0</span></div>
+            <div>زمان:<br><span id="timeUI">00:00</span></div>
+        </div>
+
+        <div class="controls" id="controls" style="display: none;">
+            <div class="dpad">
+                <div class="dbtn up" onmousedown="moveDir='up'" onmouseup="moveDir=''" ontouchstart="moveDir='up'" ontouchend="moveDir=''">بالا</div>
+                <div class="dbtn left" onmousedown="moveDir='right'" onmouseup="moveDir=''" ontouchstart="moveDir='right'" ontouchend="moveDir=''">راست</div>
+                <div class="dbtn right" onmousedown="moveDir='left'" onmouseup="moveDir=''" ontouchstart="moveDir='left'" ontouchend="moveDir=''">چپ</div>
+                <div class="dbtn down" onmousedown="moveDir='down'" onmouseup="moveDir=''" ontouchstart="moveDir='down'" ontouchend="moveDir=''">پایین</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- صفحه شروع -->
+    <div id="startModal" class="modal jungle-theme">
+        <div class="floating-animals">
+            <span class="animal a1">🦁</span>
+            <span class="animal a2">🐒</span>
+            <span class="animal a3">🦜</span>
+            <span class="animal a4">🐍</span>
+            <span class="animal a5">🐘</span>
+            <span class="animal a6">🦋</span>
+            <span class="animal a7">🐸</span>
+        </div>
+        <div class="jungle-content">
+            <h1>نبرد جنگجوی دانا</h1>
+            <h3>آموزگار: مرضیه ارمغانی</h3>
+            <p style="font-weight: bold; color: #333;">🥷 تمام دشمنان 👹 را نابود کن تا وارد قلعه 🏰 شوی!</p>
+            <p style="font-size: 14px; color: #c0392b; margin-bottom: 20px;">پاسخ درست = ۵+ سکه | پاسخ اشتباه = ۴- سکه</p>
+            <input type="text" id="playerName" placeholder="نام جنگجو را وارد کنید..." autocomplete="off">
+            <br>
+            <button class="action-btn" onclick="startGame()">ورود به جنگل</button>
+        </div>
+    </div>
+
+    <!-- پنل سوال (مبارزه) -->
+    <div id="quizModal" class="modal hidden" style="background: rgba(0,0,0,0.8);">
+        <div class="modal-content">
+            <h2 id="qText" style="color: #c0392b;">مبارزه!</h2>
+            <div id="qOptions"></div>
+        </div>
+    </div>
+
+    <!-- صفحه پایان -->
+    <div id="endModal" class="modal hidden" style="background: rgba(0,0,0,0.9);">
+        <div class="modal-content" style="border-color: #f1c40f;">
+            <h1 style="font-size: 50px; margin: 0;">🏰</h1>
+            <h1 style="color: #f39c12;">فتح قلعه!</h1>
+            <h2 id="endMsg" style="color:#27ae60;"></h2>
+            <p style="font-size: 18px; font-weight: bold;">زمان نبرد: <strong id="endTime"></strong></p>
+            <h3 style="color:#27ae60; font-size: 26px;">سکه‌های نهایی: <span id="endCoins"></span></h3>
+            <p style="font-size: 18px; font-weight: bold; color:#2c3e50; margin-top: 20px;">میخواهی دوباره بازی کنی؟</p>
+            <button class="action-btn" onclick="location.reload()" style="margin-top: 10px;">بله، نبرد دوباره!</button>
+        </div>
+    </div>
+
+<script>
+    // صداهای آفلاین (بدون نیاز به اینترنت) - با محافظت در برابر عدم پشتیبانی مرورگر
+    let audioCtx = null;
+    try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+    } catch (e) {
+        audioCtx = null;
+    }
+    function playTone(freq, type, duration, vol=0.1) {
+        if (!audioCtx) return;
+        try {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        } catch (e) { /* silently ignore audio errors */ }
+    }
+
+    let stepTimer = 0;
+    const sfx = {
+        correct: () => { playTone(600, 'sine', 0.1); setTimeout(() => playTone(800, 'sine', 0.2), 100); },
+        wrong: () => { playTone(150, 'sawtooth', 0.4, 0.2); },
+        win: () => { [400, 500, 600, 800, 1000].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.2, 0.15), i * 150)); },
+        step: () => {
+            if (Date.now() - stepTimer > 250) {
+                playTone(120, 'square', 0.08, 0.6);
+                stepTimer = Date.now();
+            }
+        }
+    };
+
+    // تبدیل عدد به رقم فارسی
+    function toPersianDigits(num) {
+        const persianDigits = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+        return num.toString().split('').map(d => (d >= '0' && d <= '9') ? persianDigits[parseInt(d)] : d).join('');
+    }
+
+    // سوالات بازی: ارزش مکانی (دسته‌های ده‌تایی و یکی‌ها)
+    const questionsPool = [
+        { q:"۶ دسته ی ده تایی و ۹ یکی می‌شود؟", ans:69 },
+        { q:"۸ دسته ی ده تایی و ۵ یکی می‌شود؟", ans:85 },
+        { q:"۳ دسته ی ده تایی و صفر یکی می‌شود؟", ans:30 },
+        { q:"۹ دسته ی ده تایی منهای ۵ دسته‌ی ده تایی می‌شود؟", ans:40 },
+        { q:"حاصل جمع ۷ دسته ی ده تایی و ۲ دسته ی ۱۰ تایی می‌شود؟", ans:90 },
+        { q:"۱ دسته ی ده تایی و ۸ یکی می‌شود؟", ans:18 },
+        { q:"۳ دسته ی ده تایی با ۲ دسته ی ۱۰ تایی و ۳ یکی می‌شود؟", ans:53 },
+        { q:"۵ دسته ی ده تایی و ۵ یکی می‌شود؟", ans:55 },
+        { q:"صفر دسته ی ده تایی و ۴ یکی می‌شود؟", ans:4 },
+        { q:"۸ دسته ی ده تایی و ۸ یکی می‌شود؟", ans:88 },
+        { q:"۴ دسته ی ده تایی و ۵ یکی می‌شود؟", ans:45 },
+        { q:"۶ دسته ی ده تایی و ۹ یکی منهای ۳ یکی می‌شود؟", ans:66 },
+        { q:"۲ دسته ی ده تایی با ۶ یکی می‌شود؟", ans:26 },
+        { q:"پاسخ جمع ۶ یکی و ۹ یکی می‌شود؟", ans:15 },
+        { q:"۴ دسته ی ده تایی با ۳ دسته ی ده‌تایی می‌شود؟", ans:70 },
+        { q:"۴ دسته ی ده تایی و ۳ یکی می‌شود؟", ans:43 }
+    ];
+
+    // ساخت گزینه‌های چندگزینه‌ای (۱ درست + ۲ نادرست تصادفی)
+    function generateOptions(correct) {
+        const offsets = [-11,-10,-9,-6,-5,-4,-3,-2,-1,1,2,3,4,5,6,9,10,11];
+        for (let i = offsets.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [offsets[i], offsets[j]] = [offsets[j], offsets[i]];
+        }
+        const distractors = new Set();
+        for (const off of offsets) {
+            const val = correct + off;
+            if (val >= 0 && val !== correct && !distractors.has(val)) {
+                distractors.add(val);
+            }
+            if (distractors.size >= 2) break;
+        }
+        while (distractors.size < 2) {
+            const val = Math.floor(Math.random() * 99);
+            if (val !== correct && !distractors.has(val)) distractors.add(val);
+        }
+        const options = [correct, ...distractors];
+        for (let i = options.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [options[i], options[j]] = [options[j], options[i]];
+        }
+        return options;
+    }
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+
+    // نقشه مسیر
+    const tileSize = 60;
+    const mapRows = 15;
+    const mapCols = 15;
+    const map = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+        [1,0,1,0,1,0,1,1,1,1,1,1,1,0,1],
+        [1,0,1,0,0,0,0,0,0,0,1,0,1,0,1],
+        [1,0,1,1,1,1,1,1,1,0,1,0,1,0,1],
+        [1,0,0,0,0,0,1,0,0,0,1,0,1,0,1],
+        [1,1,1,1,1,0,1,0,1,1,1,0,1,0,1],
+        [1,0,0,0,1,0,1,0,0,0,0,0,1,0,1],
+        [1,0,1,0,1,0,1,1,1,1,1,1,1,0,1],
+        [1,0,1,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    const TOTAL_ENEMIES = 16;
+
+    let player = { x: 1.5 * tileSize, y: 1.5 * tileSize, size: 20, speed: 3.5, emoji: '🥷' };
+    let moveDir = "";
+    let enemies = [];
+    let decorations = [];
+
+    // متغیرهای محاسبه امتیاز و پیشرفت
+    let enemiesDefeated = 0;
+    let coins = 0;
+
+    let totalTime = 0;
+    let startTime;
+    let gameLoopRef;
+    let gameState = "start";
+    let currentEnemyIndex = -1;
+    let pName = "";
+
+    let castle = { r: 13, c: 1, emoji: '🏰' };
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function initMap() {
+        enemies = [];
+        let pathTiles = [];
+        let wallTiles = [];
+
+        for(let r=0; r<mapRows; r++){
+            for(let c=0; c<mapCols; c++){
+                if(map[r][c] === 0) {
+                    if(r !== castle.r || c !== castle.c) pathTiles.push({r, c});
+                }
+                else wallTiles.push({r, c});
+            }
+        }
+
+        const enemyIcons = ['👹', '👺', '🧟', '🧛', '👾'];
+        pathTiles.sort(() => Math.random() - 0.5);
+        for(let i=0; i<Math.min(TOTAL_ENEMIES, pathTiles.length); i++){
+            enemies.push({
+                x: pathTiles[i].c * tileSize + tileSize/2,
+                y: pathTiles[i].r * tileSize + tileSize/2,
+                active: true,
+                emoji: enemyIcons[Math.floor(Math.random() * enemyIcons.length)],
+                qData: questionsPool[i % questionsPool.length]
+            });
+        }
+
+        decorations = [];
+        const treeIcons = ['🌲', '🌳', '🌴', '🌿', '🍄'];
+        wallTiles.sort(() => Math.random() - 0.5);
+        for(let i=0; i<Math.min(80, wallTiles.length); i++){
+            decorations.push({
+                x: wallTiles[i].c * tileSize + tileSize/2,
+                y: wallTiles[i].r * tileSize + tileSize/2,
+                type: treeIcons[Math.floor(Math.random() * treeIcons.length)]
+            });
+        }
+    }
+
+    function startGame() {
+        const n = document.getElementById('playerName').value.trim();
+        pName = n ? n : "جنگجوی شجاع";
+
+        document.getElementById('startModal').classList.add('hidden');
+        document.getElementById('hud').style.display = 'flex';
+        document.getElementById('controls').style.display = 'flex';
+
+        initMap();
+
+        // ریست کردن مقادیر
+        enemiesDefeated = 0;
+        coins = 0;
+        document.getElementById('enemyUI').innerText = enemiesDefeated;
+        document.getElementById('coinUI').innerText = coins;
+
+        gameState = "playing";
+        startTime = Date.now();
+        if (audioCtx) { try { audioCtx.resume(); } catch (e) {} }
+        gameLoopRef = requestAnimationFrame(gameLoop);
+    }
+
+    function formatTime(ms) {
+        let totalSeconds = Math.floor(ms / 1000);
+        let m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        let s = (totalSeconds % 60).toString().padStart(2, '0');
+        return m + ":" + s;
+    }
+
+    function isInsidePath(px, py) {
+        let col = Math.floor(px / tileSize);
+        let row = Math.floor(py / tileSize);
+        if(row >= 0 && row < mapRows && col >= 0 && col < mapCols) {
+            return map[row][col] === 0;
+        }
+        return false;
+    }
+
+    function gameLoop() {
+        if(gameState === "playing" || gameState === "quiz") {
+            totalTime = Date.now() - startTime;
+            document.getElementById('timeUI').innerText = formatTime(totalTime);
+        }
+
+        if(gameState === "playing") {
+            let nx = player.x;
+            let ny = player.y;
+
+            if (moveDir === 'up') ny -= player.speed;
+            if (moveDir === 'down') ny += player.speed;
+            if (moveDir === 'left') nx -= player.speed;
+            if (moveDir === 'right') nx += player.speed;
+
+            if(moveDir !== "") {
+                const margin = player.size / 2;
+                if (isInsidePath(nx, ny) && isInsidePath(nx-margin, ny-margin) && isInsidePath(nx+margin, ny+margin)) {
+                    player.x = nx;
+                    player.y = ny;
+                    sfx.step();
+                }
+            }
+
+            // برخورد با دشمن
+            for(let i=0; i<enemies.length; i++) {
+                let e = enemies[i];
+                if(e.active) {
+                    let dx = player.x - e.x;
+                    let dy = player.y - e.y;
+                    if(Math.sqrt(dx*dx + dy*dy) < player.size + 15) {
+                        showQuiz(i);
+                        break;
+                    }
+                }
+            }
+
+            // برخورد با قلعه
+            let cx = castle.c * tileSize + tileSize/2;
+            let cy = castle.r * tileSize + tileSize/2;
+            if(Math.sqrt(Math.pow(player.x - cx, 2) + Math.pow(player.y - cy, 2)) < player.size + 20) {
+                // اتمام بازی فقط در صورت نابودی تمام دشمنان
+                if (enemiesDefeated >= TOTAL_ENEMIES) {
+                    endGame();
+                }
+            }
+        }
+
+        draw();
+        if(gameState !== "end") {
+            gameLoopRef = requestAnimationFrame(gameLoop);
+        }
+    }
+
+    function draw() {
+        const mapPixelW = mapCols * tileSize;
+        const mapPixelH = mapRows * tileSize;
+
+        // مقیاس‌بندی برای نمایش کل نقشه در صفحه (بدون اسکرول دوربین)
+        const scale = Math.min(width / mapPixelW, height / mapPixelH);
+        const offsetX = (width - mapPixelW * scale) / 2;
+        const offsetY = (height - mapPixelH * scale) / 2;
+
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, width, height);
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+
+        // رسم نقشه
+        for(let r=0; r<mapRows; r++){
+            for(let c=0; c<mapCols; c++){
+                if(map[r][c] === 1) {
+                    ctx.fillStyle = '#0b5345';
+                } else {
+                    ctx.fillStyle = '#9c640c';
+                }
+                ctx.fillRect(c*tileSize, r*tileSize, tileSize+1, tileSize+1);
+            }
+        }
+
+        ctx.font = "35px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // رسم درختان
+        decorations.forEach(d => {
+            ctx.fillText(d.type, d.x, d.y);
+        });
+
+        // رسم قلعه
+        ctx.font = "45px Arial";
+        ctx.fillText(castle.emoji, castle.c * tileSize + tileSize/2, castle.r * tileSize + tileSize/2 - 5);
+
+        // رسم دشمنان
+        ctx.font = "35px Arial";
+        enemies.forEach(e => {
+            if(e.active) {
+                ctx.fillText(e.emoji, e.x, e.y);
+            }
+        });
+
+        // رسم بازیکن
+        ctx.font = "40px Arial";
+        ctx.fillText(player.emoji, player.x, player.y);
+
+        ctx.restore();
+    }
+
+    function showQuiz(index) {
+        gameState = "quiz";
+        moveDir = "";
+        currentEnemyIndex = index;
+        let enemy = enemies[index];
+        let qData = enemy.qData;
+
+        document.getElementById('qText').innerText = enemy.emoji + " " + qData.q;
+        let optsDiv = document.getElementById('qOptions');
+        optsDiv.innerHTML = '';
+
+        const options = generateOptions(qData.ans);
+
+        options.forEach(val => {
+            let btn = document.createElement('button');
+            btn.className = 'ans-btn';
+            btn.innerText = toPersianDigits(val);
+            btn.onclick = () => checkAnswer(val, qData.ans);
+            optsDiv.appendChild(btn);
+        });
+
+        document.getElementById('quizModal').classList.remove('hidden');
+    }
+
+    function checkAnswer(selected, correct) {
+        if(selected === correct) {
+            sfx.correct();
+            enemiesDefeated++;
+            coins += 5; // اضافه شدن 5 سکه بابت جواب درست
+            document.getElementById('enemyUI').innerText = enemiesDefeated;
+            enemies[currentEnemyIndex].active = false; // نابودی دشمن
+        } else {
+            sfx.wrong();
+            coins -= 4; // کسر 4 سکه بابت جواب اشتباه
+            // دشمن زنده می‌ماند تا بازیکن دوباره تلاش کند
+        }
+
+        document.getElementById('coinUI').innerText = coins;
+
+        // تغییر رنگ متن سکه در صورت منفی شدن
+        if (coins < 0) {
+            document.getElementById('coinUI').style.color = '#e74c3c'; // قرمز
+        } else {
+            document.getElementById('coinUI').style.color = '#2ecc71'; // سبز
+        }
+
+        document.getElementById('quizModal').classList.add('hidden');
+        gameState = "playing";
+    }
+
+    const encouragements = [
+        (n) => `آفرین ${n}! تو یک جنگجوی واقعی ریاضی هستی! 🌟`,
+        (n) => `عالی بود ${n}! با هوش و دقت قلعه رو فتح کردی! 🏆`,
+        (n) => `تبریک ${n} جان! دانش تو مثل شمشیرت برنده است! ⚔️`,
+        (n) => `${n} قهرمان، افتخار کلاس دومی‌ها شدی! 🎉`,
+        (n) => `خسته نباشی ${n}! امروز حسابی ریاضی رو شکست دادی! 💪`
+    ];
+
+    function endGame() {
+        gameState = "end";
+        sfx.win();
+        document.getElementById('hud').style.display = 'none';
+        document.getElementById('controls').style.display = 'none';
+
+        const pick = encouragements[Math.floor(Math.random() * encouragements.length)];
+        document.getElementById('endMsg').innerText = pick(pName);
+        document.getElementById('endTime').innerText = formatTime(totalTime);
+        document.getElementById('endCoins').innerText = coins;
+
+        document.getElementById('endModal').classList.remove('hidden');
+    }
+
+    window.addEventListener('keydown', e => {
+        if(gameState !== "playing") return;
+        if(e.key === 'ArrowUp') moveDir = 'up';
+        if(e.key === 'ArrowDown') moveDir = 'down';
+        if(e.key === 'ArrowLeft') moveDir = 'left';
+        if(e.key === 'ArrowRight') moveDir = 'right';
+    });
+    window.addEventListener('keyup', () => moveDir = '');
+
+</script>
+</body>
+</html>
